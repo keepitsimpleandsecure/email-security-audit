@@ -41,6 +41,9 @@ DKIM_SELECTORS=(
 # Dependency Check
 function check_deps() {
     local missing=()
+    # Kali/Debian specific install string
+    local install_cmd="sudo apt update && sudo apt install -y dnsutils curl openssl"
+
     for cmd in dig curl openssl; do
         if ! command -v $cmd &> /dev/null; then
             missing+=("$cmd")
@@ -49,9 +52,7 @@ function check_deps() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo -e "${RED}Missing dependencies: ${missing[*]}${NC}"
-        echo "Install with:"
-        echo "  Ubuntu/Debian: sudo apt install dnsutils curl openssl"
-        echo "  RHEL/CentOS: sudo yum install bind-utils curl openssl"
+        echo -e "${CYAN}On Kali Linux, run: ${NC}$install_cmd"
         exit 1
     fi
 }
@@ -270,6 +271,32 @@ function check_caa() {
     fi
 }
 
+function suggest_fixes() {
+    write_report "\n=== Recommended DNS Fixes ==="
+    echo -e "\n${YELLOW}=== Recommended DNS Fixes ===${NC}"
+    
+    # Logic for SPF Fix
+    local spf_check=$(dig +short txt "$domain" | grep "v=spf1")
+    if [ -z "$spf_check" ]; then
+        echo -e "${CYAN}[SPF]${NC} Add this TXT record to your DNS:"
+        echo "      Host: @  |  Value: v=spf1 include:_spf.google.com ~all"
+    fi
+
+    # Logic for DMARC Fix
+    local dmarc_check=$(dig +short txt "_dmarc.$domain" | grep "v=DMARC1")
+    if [ -z "$dmarc_check" ]; then
+        echo -e "${CYAN}[DMARC]${NC} Add this TXT record to protect your brand:"
+        echo "      Host: _dmarc  |  Value: v=DMARC1; p=quarantine; rua=mailto:admin@$domain"
+    fi
+
+    # Logic for CAA Fix
+    local caa_check=$(dig +short caa "$domain")
+    if [ -z "$caa_check" ]; then
+        echo -e "${CYAN}[CAA]${NC} To prevent unauthorized SSL certificates:"
+        echo "      Host: @  |  Value: 0 issue \"letsencrypt.org\""
+    fi
+}
+
 # Score Calculation
 function generate_summary() {
     local elapsed=$(( $(date +%s) - start_time ))
@@ -315,5 +342,5 @@ check_tls_rpt
 check_bimi
 check_dnssec
 check_caa
-
+suggest_fixes
 generate_summary
