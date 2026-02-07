@@ -1,93 +1,206 @@
+# Email Security Audit
 
-# Email Security Checker
+A script to perform a comprehensive audit on your email security, including SPF, DKIM, DMARC, MX records, DNSSEC, and more.  
+It produces **per-domain reports**, a **summary table**, and a **full consolidated report** with risk overview.
 
-A script to perform a comprehensive check on your email security, including SPF, DKIM, DMARC, MX records, DNSSEC, and more. This tool helps identify potential issues in your email security setup and suggests corrective actions to enhance your protection against spoofing, phishing, and other email-based threats.
+---
 
-## Features
+## 📌 Overview
 
-- SPF Check
-- DKIM Check
-- DMARC Check
-- MX Records Check
-- DNSSEC Validation
-- MTA-STS Check
-- TLS-RPT Check
-- BIMI Check
-- CAA Check
+This tool checks the security posture of one or many email domains and generates:
 
-## Prerequisites
+- **One detailed TXT report per domain**
+- **One summary table** aggregating all results
+- **One full report** with:
+  - Executive summary
+  - Risk overview (Low / Medium / High / Critical)
+  - The summary table
+  - All per-domain reports appended
 
-This script requires the following dependencies:
-- `dig`
-- `curl`
-- `openssl`
+You can run it on a single domain or feed it a CSV containing multiple domains.
 
-Install the required tools on Ubuntu/Debian:
+---
+
+## 🚀 Features
+
+- SPF validation with **quality assessment**:
+  - `OK (-all)`, `Soft (~all)`, `Weak/unsafe`, `Missing`, etc.
+- DKIM lookup (multiple well-known selectors)
+- DMARC policy extraction and **effectiveness analysis**:
+  - Distinguishes `Enforced`, `Enf-SPF`, `Enf-DKIM`, `Monitor`, `Ineffective`, `Missing`
+- MX records validation
+- DNSSEC presence / validation check
+- MTA-STS policy check
+- TLS-RPT check
+- BIMI check
+- CAA check
+- Weighted scoring system (0–100) with **grade**:
+  - Excellent / Good / Fair / Poor
+- Global risk classification per domain:
+  - Low / Medium / High / Critical
+
+---
+
+## 🖥️ Modes of Execution
+
+### Single Domain Mode
 
 ```bash
+./email_security_checker.sh -d example.com
+./email_security_checker.sh --domain example.com
+./email_security_checker.sh -domain example.com
+```
+
+### CSV Multi-Domain Mode
+
+```bash
+./email_security_checker.sh -c domains.csv
+./email_security_checker.sh --csv domains.csv
+./email_security_checker.sh -csv domains.csv
+```
+
+CSV examples:
+
+```
+domain1.com,domain2.com,domain3.com
+```
+
+or:
+
+```
+domain
+domain1.com
+domain2.com
+domain3.com
+```
+
+### Help
+
+```bash
+./email_security_checker.sh -h
+```
+
+---
+
+## 📄 Output Structure
+
+The script creates a timestamped directory:
+
+```
+email_reports_<timestamp>/
+```
+
+Containing:
+
+### Per-domain TXT reports
+
+```
+email_security_report_<domain>_<timestamp>.txt
+```
+
+Includes:
+- All checks (SPF, DKIM, DMARC, MX, DNSSEC, MTA-STS, TLS-RPT, BIMI, CAA)
+- Warnings / notes  
+- “Recommended DNS Fixes”  
+- A summary block:
+
+```
+=== Summary (table view) ===
+SPF   : OK (-all)
+DKIM  : Present (3)
+DMARC : Enforced (reject)
+Score : 75% (Good)
+Risk  : Low
+```
+
+### Summary Table
+
+```
+email_security_summary.txt
+```
+
+### Full Consolidated Report
+
+```
+email_security_full_report.txt
+```
+
+Contains:
+- Executive summary
+- Risk overview
+- Summary table
+- All per-domain reports appended
+
+---
+
+## 📊 Summary Table Columns
+
+- **Domain** – checked FQDN  
+- **SPF** – quality (OK, Soft, Missing…)  
+- **DKIM(sel)** – DKIM status and selector count  
+- **DMARC(pol)** – DMARC mode + policy  
+- **MX** – YES/NO  
+- **MTA-STS** – YES/NO  
+- **TLS-RPT** – YES/NO  
+- **BIMI** – YES/NO  
+- **DNSSEC** – YES/NO  
+- **CAA** – YES/NO  
+- **Score** – 0–100  
+- **Grade** – Excellent / Good / Fair / Poor  
+
+Example:
+
+```
+example.com | OK (-all) | Present (3) | Enforced (reject) | YES | NO | NO | NO | NO | NO | 75 | Good
+```
+
+---
+
+## 📦 Installation
+
+### Dependencies
+
+- dig  
+- curl  
+- openssl  
+
+### Debian/Ubuntu
+
+```bash
+sudo apt update
 sudo apt install dnsutils curl openssl
 ```
 
-Or on RHEL/CentOS:
+### RHEL/CentOS
 
 ```bash
 sudo yum install bind-utils curl openssl
 ```
 
-## How to Use
+---
 
-1. Clone this repository:
+## ▶️ Usage
 
-    ```bash
-    git clone https://github.com/fawad0x0/email_security_checker.git
-    ```
+Make executable:
 
-2. Navigate to the project directory:
+```bash
+chmod +x email_security_checker.sh
+```
 
-    ```bash
-    cd email_security_checker
-    ```
+Run:
 
-3. Make the script executable:
+```bash
+./email_security_checker.sh -d example.com
+```
 
-    ```bash
-    chmod +x email_security_checker.sh
-    ```
+Or:
 
-4. Run the script:
+```bash
+./email_security_checker.sh -c domains.csv
+```
 
-    ```bash
-    ./email_security_checker.sh
-    ```
+---
 
-5. Enter the domain to check when prompted (e.g., example.com).
+## 📝 License
 
-## Script Breakdown
-
-### Dependency Check
-
-The script checks for the necessary dependencies (`dig`, `curl`, `openssl`). If any are missing, it will inform you and provide installation instructions.
-
-### Domain Validation
-
-It ensures the domain is in a valid format before proceeding with checks.
-
-### Individual Checks
-
-- **SPF Check**: Ensures the domain has an SPF record and checks for any broken SPF redirects.
-- **DKIM Check**: Looks for DKIM selectors and verifies their correctness.
-- **DMARC Check**: Verifies the DMARC record and checks for valid policies.
-- **MX Records Check**: Validates the MX records and checks for IPv6 handling.
-- **DNSSEC Validation**: Verifies if DNSSEC is properly configured.
-- **MTA-STS Check**: Validates the existence and correctness of MTA-STS records.
-- **TLS-RPT Check**: Checks for TLS reporting records.
-- **BIMI Check**: Verifies the existence of BIMI records.
-- **CAA Check**: Ensures a CAA record exists to prevent unauthorized certificate issuances.
-
-### Scoring System
-
-The script assigns weights to each check, calculating an overall security score for the domain. The final score is displayed at the end, along with recommendations for improvement.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License.
