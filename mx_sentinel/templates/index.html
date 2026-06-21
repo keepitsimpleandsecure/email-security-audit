@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en" data-theme="{{ default_theme }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Security Audit</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+    --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --accent-ink:#04293a;
+    --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; --crit:#dc2626;
+    --font:Segoe UI,Roboto,Arial,sans-serif;
+  }
+  {{ theme_css|safe }}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header{padding:18px 26px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px}
+  header h1{font-size:20px;margin:0}
+  header .tag{color:var(--muted);font-size:13px}
+  header .spacer{flex:1}
+  header select{background:var(--panel);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer}
+  header{flex:0 0 auto}
+  main{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:360px 1fr;gap:0}
+  .controls{padding:20px;border-right:1px solid var(--line);overflow:auto;min-height:0}
+  #domains{height:42vh;min-height:160px;resize:vertical}
+  #domains.drag{border-color:var(--accent);background:var(--panel2)}
+  .dz-hint{color:var(--muted);font-size:11px;margin-top:6px}
+  .results{padding:20px;overflow:auto;min-height:0}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px}
+  textarea,input[type=text]{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:10px;font-size:13px;font-family:inherit}
+  textarea{min-height:120px;resize:vertical}
+  details textarea{min-height:60px;font-family:Consolas,monospace}
+  .row{display:flex;gap:8px;align-items:center}
+  .row label{margin:14px 0 6px}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);text-transform:none;letter-spacing:0;margin-top:10px}
+  button{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:11px 16px;
+    font-weight:600;font-size:14px;cursor:pointer;width:100%;margin-top:16px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);width:auto;padding:8px 12px;margin:0}
+  .exports{display:flex;gap:8px;margin:0 0 14px}
+  .progress{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin:14px 0}
+  .progress > i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;min-width:90px}
+  .stat b{display:block;font-size:18px}
+  .stat small{display:block;color:var(--muted);font-size:11px;margin-top:3px;line-height:1.6}
+  .stat small .passok,.stat small .passwarn,.stat small .passbad{font-weight:600}
+  .stat.big{min-width:118px;border-width:2px}
+  .stat.big b{font-size:28px;line-height:1.1}
+  .stat.ok2{border-color:#14532d} .stat.warn2{border-color:#854d0e} .stat.bad2{border-color:#7f1d1d}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+  th{position:sticky;top:0;background:var(--panel2);cursor:pointer;user-select:none}
+  th:hover{color:var(--accent)}
+  td:first-child,th:first-child{text-align:left}
+  tr.dom:hover{background:var(--panel)}
+  tr.dom{cursor:pointer}
+  .yes,.passok{color:var(--ok)} .no,.passbad{color:var(--bad)} .passwarn{color:var(--warn)}
+  .pill{padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .g-Excellent{background:#14532d;color:#bbf7d0}
+  .g-Good{background:#365314;color:#d9f99d}
+  .g-Fair{background:#78350f;color:#fed7aa}
+  .g-Poor{background:#7f1d1d;color:#fecaca}
+  .r-Low{color:var(--ok)} .r-Medium{color:var(--warn)} .r-High{color:#fb923c} .r-Critical{color:var(--crit);font-weight:700}
+  /* Light theme: bold the status colours so they stay legible on a pale background. */
+  [data-theme="corporate"] .passok,[data-theme="corporate"] .passbad,
+  [data-theme="corporate"] .passwarn,[data-theme="corporate"] .r-Low,
+  [data-theme="corporate"] .r-Medium,[data-theme="corporate"] .r-High{font-weight:700}
+  .detail{background:var(--panel);font-size:12.5px;text-align:left;white-space:normal}
+  .detail .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding:6px 0}
+  .detail .card{border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
+  .detail .card h4{margin:0 0 4px;font-size:13px}
+  .detail .card code{white-space:pre-wrap;word-break:break-word;display:block}
+  .fixes{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  .fixes h3{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .fix{display:grid;grid-template-columns:74px 78px 1fr;gap:10px;align-items:start;
+    padding:8px 0;border-bottom:1px dashed var(--line)}
+  .fix:last-child{border-bottom:0}
+  .sev{font-size:11px;font-weight:700;text-align:center;padding:2px 0;border-radius:5px}
+  .sev-CRITICAL{background:#7f1d1d;color:#fecaca} .sev-HIGH{background:#9a3412;color:#fed7aa}
+  .sev-MEDIUM{background:#854d0e;color:#fde68a} .sev-LOW{background:#1e3a5f;color:#bae6fd}
+  .sev-INFO{background:#334155;color:#cbd5e1}
+  .fix .ctrl{font-weight:600}
+  .fix .act{font-size:12.5px}
+  .fix .rec{display:block;margin-top:5px;font-family:Consolas,monospace;font-size:12px;
+    background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;
+    color:var(--accent);white-space:pre-wrap;word-break:break-word}
+  .fix.ok2{color:var(--muted)}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;margin-top:60px}
+  code{font-family:Consolas,monospace}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡️ Email Security Audit</h1>
+  <span class="tag">SPF · DKIM · DMARC · MX · MTA-STS · TLS-RPT · BIMI · DNSSEC · CAA</span>
+  <span class="spacer"></span>
+  <label class="tag" style="display:flex;align-items:center;gap:6px">Theme
+    <select id="theme">
+      {% for val, label in themes %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+</header>
+
+<main>
+  <section class="controls">
+    <label for="domains">Domains (one per line or comma-separated)</label>
+    <textarea id="domains" placeholder="example.com&#10;google.com, microsoft.com&#10;&#10;…or drop a .csv / .txt file anywhere on this box"></textarea>
+    <div class="dz-hint">Drag &amp; drop a <b>.csv / .txt</b> file onto the box, or use “Load CSV”.</div>
+
+    <div class="row">
+      <button class="ghost" id="csvBtn" type="button">📄 Load CSV…</button>
+      <input type="file" id="csvFile" accept=".csv,.txt" style="display:none">
+    </div>
+
+    <label for="ns">Custom DNS resolver (optional)</label>
+    <input type="text" id="ns" placeholder="e.g. 8.8.8.8 (blank = system)">
+
+    <details>
+      <summary class="muted" style="cursor:pointer;margin-top:14px;font-size:13px">DKIM selectors</summary>
+      <textarea id="selectors">{{ default_selectors }}</textarea>
+    </details>
+
+    <label class="check"><input type="checkbox" id="fetchPolicy" checked> Fetch MTA-STS policy file (HTTPS)</label>
+    <label class="check"><input type="checkbox" id="probeTransport"> Probe MX STARTTLS / cert / DANE <span class="muted">(port 25)</span></label>
+    <label class="check"><input type="checkbox" id="saveHistory"> Save run to history (for diffing)</label>
+
+    <button id="scanBtn" type="button">▶ Run Audit</button>
+    <div class="progress"><i id="bar"></i></div>
+    <div class="muted" id="progressText" style="font-size:12px"></div>
+
+    <details>
+      <summary class="muted" style="cursor:pointer;margin-top:16px;font-size:13px">✉️ Analyze a message (DKIM/DMARC alignment)</summary>
+      <textarea id="rawHeaders" placeholder="Paste raw email headers (incl. Authentication-Results, DKIM-Signature, From, Return-Path)…" style="min-height:90px"></textarea>
+      <button class="ghost" id="analyzeBtn" type="button" style="width:100%;margin-top:8px">Analyze headers</button>
+      <div id="analyzeOut" style="font-size:12.5px;margin-top:8px"></div>
+    </details>
+
+    <div class="muted" id="scoringInfo" style="font-size:11.5px;margin-top:16px;cursor:pointer">ⓘ Scoring rationale</div>
+  </section>
+
+  <section class="results">
+    <div class="stats" id="stats" style="display:none"></div>
+    <div class="exports" id="exports" style="display:none">
+      <button class="ghost" data-fmt="html">⬇ HTML</button>
+      <button class="ghost" data-fmt="csv">⬇ CSV</button>
+      <button class="ghost" data-fmt="json">⬇ JSON</button>
+      <button class="ghost" id="compareBtn">⇄ Compare to last run</button>
+    </div>
+    <div id="compareOut"></div>
+    <div id="tableWrap"><p class="empty">Enter domains and run an audit to see results.</p></div>
+  </section>
+</main>
+
+<script>
+const COLS = ["SPF","DKIM","DMARC","MX","MTA-STS","TLS-RPT","BIMI","DNSSEC","CAA"];
+let results = [];      // collected DomainResult dicts
+let sortKey = "score", sortDir = 1;
+
+const $ = s => document.querySelector(s);
+
+// ---- Theme (persisted; the exported report inherits whatever is active) ----
+const root = document.documentElement;
+const savedTheme = localStorage.getItem("esa-theme");
+if(savedTheme) root.dataset.theme = savedTheme;
+$("#theme").value = root.dataset.theme;
+$("#theme").onchange = e => {
+  root.dataset.theme = e.target.value;
+  localStorage.setItem("esa-theme", e.target.value);
+};
+
+function loadFile(f){
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { $("#domains").value = r.result; };
+  r.readAsText(f);
+}
+
+$("#csvBtn").onclick = () => $("#csvFile").click();
+$("#csvFile").onchange = e => loadFile(e.target.files[0]);
+
+// ---- Drag & drop a file onto the domains box ----
+(function(){
+  const dz = $("#domains");
+  const stop = e => { e.preventDefault(); e.stopPropagation(); };
+  ["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, e => { stop(e); dz.classList.add("drag"); }));
+  ["dragleave","dragend","drop"].forEach(ev => dz.addEventListener(ev, e => { stop(e); dz.classList.remove("drag"); }));
+  dz.addEventListener("drop", e => loadFile(e.dataTransfer.files && e.dataTransfer.files[0]));
+})();
+
+$("#scanBtn").onclick = runScan;
+
+document.querySelectorAll("#exports button[data-fmt]").forEach(b =>
+  b.onclick = () => exportAs(b.dataset.fmt));
+$("#analyzeBtn").onclick = analyzeHeaders;
+$("#compareBtn").onclick = compareLatest;
+$("#scoringInfo").onclick = showScoring;
+
+async function runScan(){
+  const domainsText = $("#domains").value.trim();
+  if(!domainsText){ alert("Enter at least one domain."); return; }
+
+  results = [];
+  setBusy(true);
+  $("#tableWrap").innerHTML = '<p class="empty">Scanning…</p>';
+  $("#stats").style.display = "none";
+  $("#exports").style.display = "none";
+
+  const payload = {
+    domains: domainsText,
+    nameserver: $("#ns").value,
+    selectors: $("#selectors").value,
+    fetch_mta_policy: $("#fetchPolicy").checked,
+    probe_transport: $("#probeTransport").checked,
+    save_history: $("#saveHistory").checked,
+  };
+  const total = domainsText.split(/[\n,]+/).map(s=>s.trim()).filter(s=>s && s.toLowerCase()!=="domain").length;
+
+  let summary = null, done = 0;
+  try {
+    const resp = await fetch("/api/scan", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    if(!resp.ok){ const e = await resp.json(); throw new Error(e.error || resp.statusText); }
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while(true){
+      const {value, done:streamDone} = await reader.read();
+      if(streamDone) break;
+      buf += dec.decode(value, {stream:true});
+      let nl;
+      while((nl = buf.indexOf("\n")) >= 0){
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl+1);
+        if(!line) continue;
+        const msg = JSON.parse(line);
+        if(msg.event === "result"){
+          results.push(msg.result);
+          done++;
+          setProgress(done, total);
+          render();
+          renderStats();
+        } else if(msg.event === "done"){
+          summary = msg.summary;
+        }
+      }
+    }
+  } catch(err){
+    $("#tableWrap").innerHTML = `<p class="empty">⚠️ ${err.message}</p>`;
+  } finally {
+    setBusy(false);
+    if(results.length){ renderStats(); $("#exports").style.display = "flex"; }
+  }
+}
+
+function setBusy(b){
+  $("#scanBtn").disabled = b;
+  $("#scanBtn").textContent = b ? "Scanning…" : "▶ Run Audit";
+  if(!b){ setTimeout(()=>{ $("#bar").style.width="0"; $("#progressText").textContent=""; }, 1200); }
+}
+function setProgress(done, total){
+  const pct = total ? Math.round(done/total*100) : 0;
+  $("#bar").style.width = pct + "%";
+  $("#progressText").textContent = `${done} / ${total} domains`;
+}
+
+function computeStats(rows){
+  const v = rows.filter(r=>r.valid);
+  const n = v.length;
+  const s = {n, invalid: rows.length - n,
+    avg: n ? Math.round(v.reduce((a,r)=>a+r.score,0)/n) : 0,
+    risk:{Critical:0,High:0,Medium:0,Low:0},
+    dmarc:{enforced:0,partial:0,monitor:0,none:0,inherited:0},
+    spf:{ok:0,weak:0,missing:0},
+    dkim:{ok:0,issues:0,missing:0},
+    mta:{enforce:0,any:0}, dnssec:0, dane:0, tlsrpt:0};
+  v.forEach(r=>{
+    s.risk[r.risk] = (s.risk[r.risk]||0)+1;
+    const b = r.dmarc_base;
+    if(b==='Enforced'||b==='Enf-NoAuth') s.dmarc.enforced++;
+    else if(b==='Enf-SPF'||b==='Enf-DKIM') s.dmarc.partial++;
+    else if(b==='Monitor') s.dmarc.monitor++;
+    else s.dmarc.none++;                       // Missing / Invalid
+    if(r.dmarc_inherited) s.dmarc.inherited++;
+    const spf = r.checks.SPF;
+    if(spf.status==='Missing'||spf.status.indexOf('Invalid')===0) s.spf.missing++;
+    else if(spf.ok && !/Soft|PERMERROR/i.test(spf.status)) s.spf.ok++;
+    else s.spf.weak++;
+    const dk = r.checks.DKIM;
+    if(dk.ok && !dk.severity) s.dkim.ok++;
+    else if(dk.ok) s.dkim.issues++;
+    else s.dkim.missing++;
+    const mta = r.checks['MTA-STS'].status||'';
+    if(/enforce/i.test(mta)) s.mta.enforce++;
+    if(r.checks['MTA-STS'].ok) s.mta.any++;
+    if(r.checks.DNSSEC.ok) s.dnssec++;
+    if(r.checks['TLS-RPT'].ok) s.tlsrpt++;
+    if(r.transport && r.transport.dane) s.dane++;
+  });
+  return s;
+}
+
+// One coloured segment, e.g. "<span class=passok>3 enforced</span>". Zero counts
+// are dimmed so the eye lands on what actually matters.
+function seg(n, cls, label){
+  return `<span class="${n?cls:'muted'}">${n} ${label}</span>`;
+}
+function renderStats(){
+  const s = computeStats(results);
+  const el = $("#stats");
+  el.style.display = "flex";
+  const prot = s.risk.Low, part = s.risk.Medium, risk = s.risk.High + s.risk.Critical;
+  const avgCls = s.avg>=75?"passok":s.avg>=50?"passwarn":"passbad";
+  const big = (cls,box,label,val,sub) =>
+    `<div class="stat big ${box}"><span class="muted">${label}</span><b class="${cls}">${val}</b><small>${sub}</small></div>`;
+  const card = (label,segs) =>
+    `<div class="stat"><span class="muted">${label}</span><small>${segs.join(" · ")}</small></div>`;
+  el.innerHTML =
+    big("passok","ok2","✓ Protected", prot, "DMARC enforced + SPF/DKIM") +
+    big("passwarn","warn2","⚠ Partial", part, "monitor / single-auth") +
+    big("passbad","bad2","✗ At risk", risk, "no effective DMARC") +
+    big(avgCls,"","Avg score", s.avg+"%", `${s.n} domain${s.n===1?"":"s"}` + (s.invalid?`, ${s.invalid} invalid`:"")) +
+    card("DMARC", [seg(s.dmarc.enforced,"passok","enforced"), seg(s.dmarc.partial,"passwarn","partial"),
+                   seg(s.dmarc.monitor,"passwarn","monitor"), seg(s.dmarc.none,"passbad","none/ineff")]) +
+    card("SPF", [seg(s.spf.ok,"passok","ok"), seg(s.spf.weak,"passwarn","weak"), seg(s.spf.missing,"passbad","missing")]) +
+    card("DKIM", [seg(s.dkim.ok,"passok","ok"), seg(s.dkim.issues,"passwarn","issues"), seg(s.dkim.missing,"passbad","not found")]) +
+    card("Transport", [seg(s.mta.enforce,"passok","MTA-STS"), seg(s.dnssec,"passok","DNSSEC"),
+                       seg(s.dane,"passok","DANE"), seg(s.tlsrpt,"passok","TLS-RPT")]);
+}
+
+function sortRows(){
+  results.sort((a,b)=>{
+    let av, bv;
+    if(sortKey==="domain"){ av=a.domain; bv=b.domain; return av.localeCompare(bv)*sortDir; }
+    if(sortKey==="risk"){ const o={Low:0,Medium:1,High:2,Critical:3,Unknown:-1};
+      return ((o[a.risk]??-1)-(o[b.risk]??-1))*sortDir; }
+    av=a[sortKey]; bv=b[sortKey];
+    return (av-bv)*sortDir;
+  });
+}
+
+function render(){
+  if(!results.length){ $("#tableWrap").innerHTML='<p class="empty">No results.</p>'; return; }
+  sortRows();
+  const head = `<tr>
+    <th data-k="domain">Domain</th>
+    ${COLS.map(c=>`<th data-k="${c}">${c}</th>`).join("")}
+    <th data-k="score">Score</th><th data-k="grade">Grade</th><th data-k="risk">Risk</th>
+  </tr>`;
+
+  const body = results.map((r,i)=>{
+    if(!r.valid){
+      return `<tr class="dom"><td><b>${r.domain}</b></td>
+        <td colspan="${COLS.length+3}" class="no" style="text-align:left">⚠️ ${r.error}</td></tr>`;
+    }
+    const cells = COLS.map(c=>{
+      const ch = r.checks[c];
+      return `<td class="${cellClass(ch)}">${ch.status}</td>`;
+    }).join("");
+    const row = `<tr class="dom" data-i="${i}">
+      <td><b>${r.domain}</b> <span class="muted">${r.elapsed}s</span></td>
+      ${cells}
+      <td><b>${r.score}</b></td>
+      <td><span class="pill g-${r.grade}">${r.grade}</span></td>
+      <td class="r-${r.risk}">${r.risk}</td></tr>`;
+    return row + detailRow(r, i);
+  }).join("");
+
+  $("#tableWrap").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+
+  document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
+    const k = th.dataset.k;
+    if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=(k==="domain")?1:-1; }
+    render();
+  });
+  document.querySelectorAll("tr.dom[data-i]").forEach(tr=>tr.onclick=()=>{
+    const d = document.getElementById("d"+tr.dataset.i);
+    if(d) d.style.display = d.style.display==="table-row" ? "none" : "table-row";
+  });
+}
+
+function escH(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+// Green = full protection, orange = passing but partial/weak, red = failing.
+function cellClass(ch){
+  if(!ch.ok) return 'passbad';
+  if(ch.severity || /Enf-SPF|Enf-DKIM|Soft|testing|unverified|Partial|inherited/i.test(ch.status))
+    return 'passwarn';
+  return 'passok';
+}
+
+function fixesHtml(recs){
+  if(!recs || !recs.length)
+    return `<div class="fixes"><div class="fix ok2">✓ No remediation needed — core controls look healthy.</div></div>`;
+  const items = recs.map(f=>`
+    <div class="fix">
+      <span class="sev sev-${f.severity}">${f.severity}</span>
+      <span class="ctrl">${escH(f.control)}</span>
+      <span class="act">${escH(f.action)}
+        ${f.record ? `<code class="rec">${escH(f.record)}</code>` : ""}</span>
+    </div>`).join("");
+  return `<div class="fixes"><h3>Recommended fixes (${recs.length})</h3>${items}</div>`;
+}
+
+function detailRow(r, i){
+  const cards = COLS.map(c=>{
+    const ch = r.checks[c];
+    const sev = ch.severity ? ` <span class="muted">[${ch.severity}]</span>` : "";
+    const recs = (ch.records&&ch.records.length)
+      ? `<div class="muted"><code>${ch.records.join("<br>").replace(/</g,"&lt;")}</code></div>` : "";
+    return `<div class="card"><h4 class="${cellClass(ch)}">${c}: ${ch.status}${sev}</h4>
+      <div>${(ch.detail||"").replace(/</g,"&lt;").replace(/\n/g,"<br>")}</div>${recs}</div>`;
+  }).join("");
+  return `<tr id="d${i}" style="display:none"><td class="detail" colspan="${COLS.length+4}">
+    <div class="grid">${cards}</div>${transportHtml(r.transport)}${fixesHtml(r.recommendations)}</td></tr>`;
+}
+
+function transportHtml(t){
+  if(!t || !t.checked || !t.hosts || !t.hosts.length) return "";
+  const rows = t.hosts.map(h=>{
+    const c = h.cert || {};
+    const tls = h.starttls ? `<span class="passok">${escH(h.tls_version||"TLS")}</span>` : `<span class="passbad">no STARTTLS</span>`;
+    const cert = c.not_after ? `${escH(c.subject||"")} · exp ${escH((c.not_after||"").slice(0,10))} (${c.days_left}d)${c.expired?' <span class="passbad">EXPIRED</span>':''}${c.host_match===false?' <span class="passbad">host mismatch</span>':''}` : (h.error?escH(h.error):"");
+    const dane = (h.tlsa&&h.tlsa.length) ? '<span class="passok">DANE</span>' : '<span class="muted">no DANE</span>';
+    return `<div class="card"><h4>${escH(h.host)}</h4>
+      <div>STARTTLS: ${tls} &nbsp; ${dane}</div>
+      <div class="muted">${cert}</div></div>`;
+  }).join("");
+  return `<div class="fixes"><h3>Transport (MX TLS / DANE)</h3><div class="grid">${rows}</div></div>`;
+}
+
+async function exportAs(fmt){
+  if(!results.length) return;
+  const resp = await fetch("/api/export/"+fmt, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({results, theme: document.documentElement.dataset.theme})
+  });
+  const blob = await resp.blob();
+  const dispo = resp.headers.get("Content-Disposition") || "";
+  const m = dispo.match(/filename="(.+?)"/);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = m ? m[1] : ("email_security."+fmt);
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function analyzeHeaders(){
+  const raw = $("#rawHeaders").value.trim();
+  const out = $("#analyzeOut");
+  if(!raw){ out.innerHTML = '<span class="muted">Paste headers first.</span>'; return; }
+  out.innerHTML = '<span class="muted">Analyzing…</span>';
+  const resp = await fetch("/api/analyze-headers", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({raw})
+  });
+  const a = await resp.json();
+  if(a.error){ out.innerHTML = `<span class="no">${escH(a.error)}</span>`; return; }
+  const tag = (ok,label)=>`<span class="${ok?'passok':'passbad'}">${label}</span>`;
+  const verdictPill = a.verdict==="PASS"?'<span class="pill g-Excellent">DMARC PASS</span>'
+    : a.verdict==="FAIL"?'<span class="pill g-Poor">DMARC FAIL</span>'
+    : '<span class="pill g-Fair">UNKNOWN</span>';
+  out.innerHTML = `
+    ${verdictPill}
+    <div style="margin-top:6px">From: <b>${escH(a.from_domain||"?")}</b></div>
+    <div>SPF: ${tag(a.spf.result==="pass","result="+(a.spf.result||"n/a"))} ·
+      align ${tag(a.spf.aligned,a.spf.aligned?"yes":"no")} <span class="muted">(${escH(a.return_path_domain||"no return-path")})</span></div>
+    <div>DKIM: ${tag(a.dkim.result==="pass","result="+(a.dkim.result||"n/a"))} ·
+      align ${tag(a.dkim.aligned,a.dkim.aligned?"yes":"no")} <span class="muted">${escH((a.dkim.domains||[]).join(", "))}</span></div>
+    ${a.notes&&a.notes.length?`<div class="muted" style="margin-top:6px">${a.notes.map(escH).join("<br>")}</div>`:""}`;
+}
+
+async function compareLatest(){
+  const out = $("#compareOut");
+  if(!results.length){ return; }
+  out.innerHTML = '<p class="muted">Comparing to last saved run…</p>';
+  const resp = await fetch("/api/history/compare-latest", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({results})
+  });
+  if(!resp.ok){ const e=await resp.json(); out.innerHTML=`<p class="muted">${escH(e.error||"compare failed")}</p>`; return; }
+  const d = await resp.json();
+  let html = `<div class="fixes"><h3>Diff vs ${escH((d.old_ts||"").slice(0,19))}</h3>`;
+  if(d.added.length) html += `<div>Added: ${d.added.map(escH).join(", ")}</div>`;
+  if(d.removed.length) html += `<div>Removed: ${d.removed.map(escH).join(", ")}</div>`;
+  if(!d.changed.length) html += `<div class="muted">No per-domain changes.</div>`;
+  d.changed.forEach(c=>{
+    const bits = Object.entries({...c.deltas, ...c.controls}).map(([k,v])=>`${k}: ${escH(""+v[0])}→${escH(""+v[1])}`);
+    html += `<div class="fix"><span class="sev ${c.regressed?'sev-HIGH':'sev-INFO'}">${c.regressed?'REGRESS':'CHANGE'}</span>
+      <span class="ctrl">${escH(c.domain)}</span><span class="act">${bits.join("; ")}</span></div>`;
+  });
+  html += `</div>`;
+  out.innerHTML = html;
+}
+
+async function showScoring(){
+  const s = await (await fetch("/api/scoring")).json();
+  const w = Object.entries(s.weights).map(([k,v])=>`${k} ${v}`).join(" · ");
+  alert(`Scoring (max ${s.max_score})\nWeights: ${w}\n\nGrades: `
+    + s.grades.map(g=>`${g.grade}≥${g.min}`).join(", ")
+    + `\n\n${s.risk}\n\n${s.notes}`);
+}
+</script>
+</body>
+</html>

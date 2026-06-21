@@ -1,0 +1,5 @@
+Flask>=3.0
+dnspython>=2.6
+requests>=2.31
+tldextract>=5.1
+cryptography>=42.0

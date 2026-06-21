@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+history/
+email_reports_*/
+email_security_*.csv
+email_security_*.json
+email_security_*.html
